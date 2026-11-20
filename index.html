@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ExcelSimple – turn any Excel sheet into a working app</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script data-goatcounter="https://excel-workflow.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+<style>
+:root{--bg:#eef1f5;--panel:#fff;--ink:#0f1b2d;--mute:#5b6b80;--line:#d9dfe7;--acc:#1746d1;--acc2:#e9efff;--ok:#0b7a4b;--bad:#b42318}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{font:14px/1.45 "IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink);display:flex}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;border:1px solid var(--line);background:var(--panel);padding:7px 12px;border-radius:6px}
+button:hover{border-color:var(--acc)}
+button.pri{background:var(--acc);color:#fff;border-color:var(--acc)}
+button.del{color:var(--bad)}
+:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
+input,select,textarea{border:1px solid var(--line);border-radius:6px;padding:7px 9px;background:#fff;width:100%}
+aside{width:250px;flex:none;background:var(--ink);color:#e6ecf5;padding:18px 14px;display:flex;flex-direction:column;gap:6px;overflow:auto}
+aside h1{font-size:18px;margin:0 0 2px;letter-spacing:-.01em}
+aside p{margin:0 0 12px;color:#9fb0c6;font-size:12px}
+.wf{display:flex;justify-content:space-between;gap:6px;padding:9px 10px;border-radius:6px;cursor:pointer;background:transparent;border:0;color:inherit;text-align:left;width:100%}
+.wf:hover{background:#1b2b44}.wf.on{background:var(--acc)}
+.wf small{opacity:.7}
+aside .add{margin-top:8px;background:transparent;color:#fff;border:1px dashed #5b7090;text-align:center}
+aside .foot{margin-top:auto;display:flex;gap:6px;flex-wrap:wrap;font-size:12px}
+aside .foot button{background:transparent;color:#c7d3e4;border-color:#34496a;padding:5px 8px;font-size:12px}
+main{flex:1;min-width:0;overflow:auto;padding:22px 26px}
+.top{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.top h2{margin:0;font-size:22px;letter-spacing:-.01em;flex:1;min-width:160px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px;margin-bottom:14px}
+.stats{display:flex;gap:10px;flex-wrap:wrap}
+.stat{flex:1;min-width:130px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+.stat b{display:block;font-size:20px;font-variant-numeric:tabular-nums}.stat span{color:var(--mute);font-size:12px}
+.ask{display:flex;gap:8px}.ask input{flex:1}
+#ans{margin-top:8px;color:var(--ink)}#ans:empty{display:none}
+.tools{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}.tools input{max-width:260px}.tools select{width:auto;max-width:180px}
+.tw{overflow:auto;border:1px solid var(--line);border-radius:8px;background:var(--panel);max-height:62vh}
+table{border-collapse:collapse;width:100%}
+th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap;max-width:280px;overflow:hidden;text-overflow:ellipsis}
+th{position:sticky;top:0;background:#f7f9fc;cursor:pointer;user-select:none;z-index:1}
+td.n{text-align:right;font-variant-numeric:tabular-nums}
+tr:hover td{background:#f5f8ff}
+td.act{width:1%;white-space:nowrap}
+td.act button{padding:3px 8px;font-size:12px}
+.pill{display:inline-block;padding:1px 8px;border-radius:99px;background:var(--acc2);color:var(--acc);font-size:12px}
+.bars{display:grid;grid-template-columns:minmax(80px,170px) 1fr auto;gap:6px 10px;align-items:center}
+.bar{height:14px;background:var(--acc);border-radius:3px}
+.empty{padding:44px 20px;text-align:center;color:var(--mute)}
+.drop{border:2px dashed var(--line);border-radius:10px;padding:34px;text-align:center;background:var(--panel)}
+.drop.over{border-color:var(--acc);background:var(--acc2)}
+dialog{border:1px solid var(--line);border-radius:10px;padding:18px;width:min(560px,94vw);max-height:90vh}
+dialog::backdrop{background:rgba(15,27,45,.45)}
+.f{margin-bottom:10px}.f label{display:block;font-size:12px;color:var(--mute);margin-bottom:3px}
+.row{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
+.cfg{display:grid;grid-template-columns:1fr 150px;gap:8px;margin-bottom:6px;align-items:center}
+.mute{color:var(--mute)}.int{color:var(--mute);font-size:12px;margin-bottom:8px}.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.chips button{font-size:12px;padding:3px 10px;border-radius:99px;color:var(--mute)}
+@media(max-width:760px){body{flex-direction:column}aside{width:100%;max-height:38vh}main{padding:14px}}
+</style>
+</head>
+<body>
+<aside>
+  <h1>ExcelSimple</h1>
+  <p>Your sheet data stays in this browser and is never uploaded.</p>
+  <div id="wfs"></div>
+  <button class="add" id="addBtn">+ Add Excel workflow</button>
+  <div class="foot"><button id="bk">Backup all</button><button id="rs">Restore</button></div>
+</aside>
+<main id="main"></main>
+<input type="file" id="fileIn" accept=".xlsx,.xls,.csv" hidden>
+<input type="file" id="restoreIn" accept=".json" hidden>
+<dialog id="dlg"></dialog>
+
+<script>
+// ---------- storage (IndexedDB, on this device) ----------
+const DB={db:null,
+ open(){return new Promise((res,rej)=>{const r=indexedDB.open("sheettoapp",1);r.onupgradeneeded=()=>r.result.createObjectStore("apps",{keyPath:"id"});r.onsuccess=()=>{this.db=r.result;res()};r.onerror=()=>rej(r.error)})},
+ tx(m,f){return new Promise((res,rej)=>{const t=this.db.transaction("apps",m),s=t.objectStore("apps"),q=f(s);t.oncomplete=()=>res(q&&q.result);t.onerror=()=>rej(t.error)})},
+ all(){return this.tx("readonly",s=>s.getAll())},
+ put(a){return this.tx("readwrite",s=>s.put(a))},
+ del(id){return this.tx("readwrite",s=>s.delete(id))}};
+
+// ---------- helpers ----------
+const $=s=>document.querySelector(s);
+const esc=v=>String(v??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const uid=()=>Math.random().toString(36).slice(2,10);
+const fmtN=n=>Number(n).toLocaleString("en-IN",{maximumFractionDigits:2});
+let apps=[],cur=null,st={q:"",sort:null,dir:1,fil:{},limit:200};
+
+// ---------- on-device "AI": smart structure detection ----------
+const pad=n=>String(n).padStart(2,"0");
+function parseDate(v,dmy=true){
+  if(v instanceof Date&&!isNaN(v))return `${v.getFullYear()}-${pad(v.getMonth()+1)}-${pad(v.getDate())}`;
+  if(typeof v!=="string")return null;
+  const s=v.trim();let m;
+  if(m=s.match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})$/))return `${m[1]}-${pad(m[2])}-${pad(m[3])}`;
+  if(m=s.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2,4})$/)){
+    let a=+m[1],b=+m[2],y=+m[3];if(y<100)y+=2000;
+    let d=dmy?a:b,mo=dmy?b:a;if(mo>12&&d<=12)[d,mo]=[mo,d];
+    if(mo<1||mo>12||d<1||d>31)return null;return `${y}-${pad(mo)}-${pad(d)}`;}
+  if(m=s.match(/^(\d{1,2})[ -]([A-Za-z]{3,9})[ -,]*(\d{2,4})$/)){
+    const mo=["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"].indexOf(m[2].slice(0,3).toLowerCase());
+    if(mo<0)return null;let y=+m[3];if(y<100)y+=2000;return `${y}-${pad(mo+1)}-${pad(m[1])}`;}
+  return null;
+}
+function detectDmy(vals){ // if any first part >12 => day-first; if any second part >12 => month-first; default day-first
+  for(const v of vals){const m=typeof v==="string"&&v.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.]\d{2,4}$/);if(m){if(+m[2]>12)return false;if(+m[1]>12)return true}}
+  return true;
+}
+function inferCol(name,vals){
+  const v=vals.filter(x=>x!==""&&x!=null),n=v.length;
+  if(!n)return{name,type:"text"};
+  const dmy=detectDmy(v);
+  if(v.filter(x=>parseDate(x,dmy)).length/n>=.8&&v.some(x=>x instanceof Date||/\D/.test(String(x))))return{name,type:"date",dmy};
+  if(v.filter(x=>typeof x==="number"||(typeof x==="string"&&/^-?[\d,]+(\.\d+)?$/.test(x.trim())&&x.trim()!=="")).length/n>=.9){
+    const nm=/phone|mobile|contact|pin|zip|id$|no\.?$|number|roll/i.test(name);
+    return{name,type:nm?"text":"number"};}
+  const strs=v.map(String);
+  if(strs.every(s=>/^(yes|no|y|n|true|false|done|pending)$/i.test(s))&&new Set(strs.map(s=>s.toLowerCase())).size<=2)return{name,type:"choice",opts:[...new Set(strs)]};
+  const u=[...new Set(strs)];
+  if(u.length<=Math.max(6,Math.round(n*.15))&&u.length<=20&&n>=4)return{name,type:"choice",opts:u.sort()};
+  if(strs.reduce((a,s)=>a+s.length,0)/n>70)return{name,type:"long"};
+  return{name,type:"text"};
+}
+function parseSheet(ws){
+  const aoa=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:"",blankrows:false});
+  if(!aoa.length)return null;
+  let h=0,best=-1;
+  for(let i=0;i<Math.min(10,aoa.length);i++){const sc=aoa[i].filter(c=>typeof c==="string"&&c.trim()).length;if(sc>best+0){if(sc>best){best=sc;h=i}}}
+  const seen={},heads=aoa[h].map((c,i)=>{let t=String(c||"").trim()||`Column ${i+1}`;if(seen[t])t+=" "+(++seen[t]);else seen[t]=1;return t});
+  const body=aoa.slice(h+1).filter(r=>r.some(c=>c!==""));
+  const cols=heads.map((n,i)=>inferCol(n,body.map(r=>r[i])));
+  const rows=body.map(r=>{const o={_id:uid()};cols.forEach((c,i)=>{let x=r[i];
+    if(c.type==="date")x=parseDate(x,c.dmy)||"";
+    else if(c.type==="number"){x=x===""?"":(typeof x==="number"?x:parseFloat(String(x).replace(/,/g,"")))}
+    else x=x instanceof Date?parseDate(x):String(x??"");
+    o[c.name]=x});return o});
+  return{cols,rows};
+}
+
+// ---------- import flow ----------
+function readFile(file){
+  const fr=new FileReader();
+  fr.onload=e=>{
+    const wb=XLSX.read(e.target.result,{type:"array",cellDates:true});
+    const parsed=wb.SheetNames.map(n=>({n,p:parseSheet(wb.Sheets[n])})).filter(x=>x.p);
+    if(!parsed.length){alert("No data found in this file.");return}
+    showSetup(file.name.replace(/\.[^.]+$/,""),parsed);
+  };
+  fr.readAsArrayBuffer(file);
+}
+const TYPES={text:"Text",number:"Number",date:"Date",choice:"Choice (dropdown)",long:"Long text"};
+function showSetup(title,parsed){
+  const d=$("#dlg");let idx=0;
+  const draw=()=>{const p=parsed[idx].p;
+    d.innerHTML=`<h3 style="margin-top:0">Set up your app</h3>
+    <p class="mute">I read the sheet and guessed what each column is. Change anything that looks wrong.</p>
+    <div class="f"><label>App name</label><input id="sn" value="${esc(title)}"></div>
+    ${parsed.length>1?`<div class="f"><label>Sheet</label><select id="sh">${parsed.map((x,i)=>`<option value="${i}" ${i==idx?"selected":""}>${esc(x.n)} (${x.p.rows.length} rows)</option>`).join("")}</select></div>`:""}
+    <div style="max-height:46vh;overflow:auto">${p.cols.map((c,i)=>`<div class="cfg"><span>${esc(c.name)}</span><select data-i="${i}">${Object.entries(TYPES).map(([k,v])=>`<option value="${k}" ${k==c.type?"selected":""}>${v}</option>`).join("")}</select></div>`).join("")}</div>
+    <p class="mute">${p.rows.length} rows found.</p>
+    <div class="row"><button onclick="$('#dlg').close()">Cancel</button><button class="pri" id="mk">Create app</button></div>`;
+    d.querySelectorAll("select[data-i]").forEach(s=>s.onchange=()=>{const c=p.cols[s.dataset.i];c.type=s.value;
+      if(c.type==="choice"&&!c.opts)c.opts=[...new Set(p.rows.map(r=>r[c.name]).filter(x=>x!==""))].sort();
+      if(c.type==="number")p.rows.forEach(r=>{const x=parseFloat(String(r[c.name]).replace(/,/g,""));r[c.name]=isNaN(x)?"":x});});
+    const sh=$("#sh");if(sh)sh.onchange=()=>{title=$("#sn").value;idx=+sh.value;draw()};
+    $("#mk").onclick=async()=>{const a={id:uid(),name:$("#sn").value||"Untitled",cols:p.cols,rows:p.rows,created:Date.now()};
+      await DB.put(a);apps.push(a);cur=a.id;st={q:"",sort:null,dir:1,fil:{},limit:200};d.close();render()};
+  };
+  draw();d.showModal();
+}
+
+// ---------- rendering ----------
+const app=()=>apps.find(a=>a.id===cur);
+function render(){
+  $("#wfs").innerHTML=apps.map(a=>`<button class="wf ${a.id===cur?"on":""}" data-id="${a.id}"><span>${esc(a.name)}</span><small>${a.rows.length}</small></button>`).join("");
+  $("#wfs").querySelectorAll(".wf").forEach(b=>b.onclick=()=>{cur=b.dataset.id;st={q:"",sort:null,dir:1,fil:{},limit:200};render()});
+  const a=app(),m=$("#main");
+  if(!a){m.innerHTML=`<div class="top"><h2>Turn your Excel into an app</h2></div>
+    <div class="drop" id="drop"><p style="font-size:16px;margin-top:0"><b>Drop an Excel or CSV file here</b></p>
+    <p class="mute">The tool detects columns, dates and dropdown values, then gives you a table with search, filters, add / edit / delete, charts and export. Add more files later to build more workflows.</p>
+    <button class="pri" onclick="$('#fileIn').click()">Choose file</button></div>`;
+    const dr=$("#drop");dr.ondragover=e=>{e.preventDefault();dr.classList.add("over")};dr.ondragleave=()=>dr.classList.remove("over");
+    dr.ondrop=e=>{e.preventDefault();dr.classList.remove("over");if(e.dataTransfer.files[0])readFile(e.dataTransfer.files[0])};return}
+  const choiceCols=a.cols.filter(c=>c.type==="choice"),numCols=a.cols.filter(c=>c.type==="number");
+  m.innerHTML=`<div class="top"><h2>${esc(a.name)}</h2>
+    <button id="nw" class="pri">+ Add row</button><button id="ex">Export Excel</button><button id="rn">Rename</button><button id="dl" class="del">Delete app</button></div>
+    <div class="card"><div class="ask"><input id="q" placeholder="Ask in your own words, e.g. which ${esc(numCols[0]?.name||"amount")} is highest?"><button id="go">Ask</button></div><div id="sug" class="chips"></div><div id="ans"></div></div>
+    <div class="stats" id="stats" style="margin-bottom:14px"></div>
+    <div class="card" id="chart"></div>
+    <div class="tools"><input id="sr" placeholder="Search all columns" value="${esc(st.q)}">${choiceCols.map(c=>`<select data-f="${esc(c.name)}"><option value="">${esc(c.name)}: all</option>${c.opts.map(o=>`<option ${st.fil[c.name]===o?"selected":""}>${esc(o)}</option>`).join("")}</select>`).join("")}<button id="cl">Clear</button></div>
+    <div class="tw" id="tw"></div>`;
+  $("#nw").onclick=()=>editRow();$("#ex").onclick=exportX;
+  $("#rn").onclick=async()=>{const n=prompt("App name",a.name);if(n){a.name=n;await DB.put(a);render()}};
+  $("#dl").onclick=async()=>{if(confirm("Delete this app and its data from this device?")){await DB.del(a.id);apps=apps.filter(x=>x!==a);cur=apps[0]?.id||null;render()}};
+  $("#sr").oninput=e=>{st.q=e.target.value;st.limit=200;table()};
+  m.querySelectorAll("select[data-f]").forEach(s=>s.onchange=()=>{st.fil[s.dataset.f]=s.value;st.limit=200;table()});
+  $("#cl").onclick=()=>{st={q:"",sort:null,dir:1,fil:{},limit:200};render()};
+  $("#go").onclick=ask;$("#q").onkeydown=e=>{if(e.key==="Enter")ask()};
+  {const nc=numCols[0],cc=choiceCols[0],dc=a.cols.find(c=>c.type==="date"),sg=[];
+   if(nc&&cc)sg.push(`total ${nc.name} by ${cc.name}`);if(cc)sg.push(`how many ${cc.opts[0]}`);
+   if(nc)sg.push(`top 5 by ${nc.name}`,`highest ${nc.name}`);if(dc)sg.push(`${nc?"total "+nc.name:"count"} this month`);
+   $("#sug").innerHTML=sg.map(t=>`<button>${esc(t)}</button>`).join("");
+   $("#sug").querySelectorAll("button").forEach(b=>b.onclick=()=>{$("#q").value=b.textContent;ask()});}
+  stats();chart();table();
+}
+function view(a){
+  let r=a.rows;const q=st.q.toLowerCase();
+  if(q)r=r.filter(x=>a.cols.some(c=>String(x[c.name]).toLowerCase().includes(q)));
+  for(const[k,v]of Object.entries(st.fil))if(v)r=r.filter(x=>x[k]===v);
+  for(const f of st.pf||[])r=r.filter(x=>matchF(x,f,a));
+  if(st.sort){const k=st.sort;r=[...r].sort((x,y)=>(x[k]>y[k]?1:x[k]<y[k]?-1:0)*st.dir)}
+  return r;
+}
+function table(){
+  const a=app(),r=view(a),show=r.slice(0,st.limit);
+  if(!a.rows.length){$("#tw").innerHTML=`<div class="empty">No rows yet. Use “Add row” to create the first one.</div>`;return}
+  $("#tw").innerHTML=`<table><thead><tr>${a.cols.map(c=>`<th data-c="${esc(c.name)}">${esc(c.name)}${st.sort===c.name?(st.dir>0?" ▲":" ▼"):""}</th>`).join("")}<th></th></tr></thead><tbody>${
+    show.map(x=>`<tr>${a.cols.map(c=>{const v=x[c.name];
+      return c.type==="number"?`<td class="n">${v===""?"":fmtN(v)}</td>`:c.type==="choice"&&v!==""?`<td><span class="pill">${esc(v)}</span></td>`:`<td title="${esc(v)}">${esc(v)}</td>`}).join("")}
+      <td class="act"><button data-e="${x._id}">Edit</button> <button class="del" data-d="${x._id}">Delete</button></td></tr>`).join("")||`<tr><td colspan="${a.cols.length+1}" class="empty">Nothing matches. Clear the search or filters.</td></tr>`}</tbody></table>
+    ${r.length>st.limit?`<div class="empty"><button id="more">Show more (${r.length-st.limit} left)</button></div>`:""}`;
+  $("#tw").querySelectorAll("th[data-c]").forEach(h=>h.onclick=()=>{const c=h.dataset.c;st.dir=st.sort===c?-st.dir:1;st.sort=c;table()});
+  $("#tw").querySelectorAll("[data-e]").forEach(b=>b.onclick=()=>editRow(b.dataset.e));
+  $("#tw").querySelectorAll("[data-d]").forEach(b=>b.onclick=async()=>{if(confirm("Delete this row?")){a.rows=a.rows.filter(x=>x._id!==b.dataset.d);await DB.put(a);render()}});
+  const mo=$("#more");if(mo)mo.onclick=()=>{st.limit+=200;table()};
+}
+function stats(){
+  const a=app(),r=view(a),nums=a.cols.filter(c=>c.type==="number").slice(0,3);
+  $("#stats").innerHTML=`<div class="stat"><b>${r.length}</b><span>rows shown of ${a.rows.length}</span></div>`+nums.map(c=>`<div class="stat"><b>${fmtN(r.reduce((s,x)=>s+(+x[c.name]||0),0))}</b><span>Total ${esc(c.name)}</span></div>`).join("");
+}
+function group(a,gc,nc){
+  const g={};for(const x of a.rows){const k=x[gc.name]||"(blank)";g[k]=(g[k]||0)+(nc?(+x[nc.name]||0):1)}
+  return Object.entries(g).sort((x,y)=>y[1]-x[1]).slice(0,10);
+}
+function chart(){
+  const a=app(),gc=a.cols.find(c=>c.type==="choice")||a.cols.find(c=>c.type==="text"&&new Set(a.rows.map(r=>r[c.name])).size<=30),nc=a.cols.find(c=>c.type==="number");
+  if(!gc||!a.rows.length){$("#chart").style.display="none";return}
+  const g=group(a,gc,nc),mx=Math.max(...g.map(x=>x[1]))||1;
+  $("#chart").innerHTML=`<b>${nc?esc(nc.name):"Rows"} by ${esc(gc.name)}</b><div class="bars" style="margin-top:10px">${g.map(([k,v])=>`<span>${esc(k)}</span><div><div class="bar" style="width:${Math.max(2,v/mx*100)}%"></div></div><span class="n">${fmtN(v)}</span>`).join("")}</div>`;
+}
+
+// ---------- ask: understands plain questions, answers from your data on this device ----------
+const NUMW={sum:/\b(total|sum|how much|altogether)\b/,avg:/\b(average|avg|mean)\b/,max:/\b(max|maximum|highest|largest|biggest|most|top)\b/,min:/\b(min|minimum|lowest|smallest|cheapest|least)\b/,count:/\b(count|how many|number of)\b/,distinct:/\b(unique|distinct|different)\b/};
+const stem=s=>s.toLowerCase().replace(/[^a-z0-9 ]/g," ").split(/\s+/).filter(Boolean).map(w=>w.length>3?w.replace(/(ies|es|s)$/,m=>m==="ies"?"y":""):w);
+const mentioned=(a,qs)=>a.cols.filter(c=>{const w=stem(c.name);return w.length&&w.every(x=>qs.includes(x))}).sort((x,y)=>y.name.length-x.name.length);
+const rx=s=>s.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
+const agg=(rs,op,nc)=>{if(op==="count"||!nc)return rs.length;const v=rs.map(x=>+x[nc.name]).filter(x=>!isNaN(x));if(!v.length)return 0;const s=v.reduce((p,c)=>p+c,0);return op==="sum"?s:op==="avg"?s/v.length:op==="min"?Math.min(...v):Math.max(...v)};
+
+function matchF(x,f,a){
+  const c=a.cols.find(k=>k.name===f.col);if(!c)return true;
+  let v=x[c.name],t=f.value,u=f.value2;const o=f.op;
+  if(c.type==="number"){v=v===""?NaN:+v;t=parseFloat(String(t).replace(/,/g,""));u=parseFloat(String(u).replace(/,/g,""))}
+  else{v=String(v).toLowerCase();t=String(t).toLowerCase();u=String(u??"").toLowerCase()}
+  return o==="="?v===t:o==="!="?v!==t:o==="contains"?String(v).includes(String(t)):o===">"?v>t:o==="<"?v<t:o===">="?v>=t:o==="<="?v<=t:o==="between"?(v>=t&&v<=u):true;
+}
+
+// on-device language understanding: question -> query plan
+function localPlan(a,q){
+  const ql=q.toLowerCase(),qs=stem(q),men=mentioned(a,qs),F=[],P={filters:F,op:"list"},
+    nums=a.cols.filter(c=>c.type==="number"),dts=a.cols.filter(c=>c.type==="date");
+  let hit=false,m;
+  const has=w=>new RegExp("(^|[^a-z0-9])"+rx(w.toLowerCase())+"($|[^a-z0-9])").test(ql);
+  for(const k of ["distinct","count","avg","sum","min","max"])if(NUMW[k].test(ql)){P.op=k;hit=true;break}
+  const nc=men.find(c=>c.type==="number")||nums[0];
+  if(["sum","avg","min","max"].includes(P.op))P.col=nc?.name;
+  if(P.op==="distinct")P.col=(men.find(c=>c.type!=="number")||a.cols[0]).name;
+  if(m=ql.match(/\b(top|bottom|first|last)\s+(\d+)/)){P.op="list";P.limit=+m[2];P.sort={col:(nc||dts[0]||a.cols[0]).name,dir:m[1]==="bottom"?"asc":"desc"};hit=true}
+  else if(/\b(latest|recent|newest)\b/.test(ql)&&dts[0]){P.op="list";P.sort={col:(men.find(c=>c.type==="date")||dts[0]).name,dir:"desc"};hit=true}
+  else if(/\b(oldest|earliest)\b/.test(ql)&&dts[0]){P.op="list";P.sort={col:(men.find(c=>c.type==="date")||dts[0]).name,dir:"asc"};hit=true}
+  if(m=ql.match(/\b(?:by|per|each)\s+(.+)$/)){
+    const g=mentioned(a,stem(m[1])).find(c=>c.name!==P.col);
+    if(g){if(P.op==="list"){if(g.type==="number"||g.type==="date")P.sort={col:g.name,dir:P.sort?.dir||"desc"}}
+      else if(g.type!=="number"){P.groupBy=g.name;hit=true}}}
+  // dropdown values mentioned in the question
+  for(const c of a.cols.filter(c=>c.type==="choice"))for(const o of c.opts)if(o.length>1&&has(o)&&c.name!==P.groupBy){
+    const neg=new RegExp("\\b(not|except|excluding|other than)\\s+"+rx(o.toLowerCase())).test(ql);
+    F.push({col:c.name,op:neg?"!=":"=",value:o});hit=true;break}
+  // known names / text values mentioned in the question
+  for(const c of a.cols.filter(c=>c.type==="text")){
+    const dv=[...new Set(a.rows.map(r=>String(r[c.name])))].filter(v=>v.length>=3&&ql.includes(v.toLowerCase()));
+    if(dv.length>3000)continue;const v=dv.sort((x,y)=>y.length-x.length).find(has);
+    if(v){F.push({col:c.name,op:"=",value:v});hit=true}}
+  if(m=ql.match(/\b(?:contains|containing|like|named|called)\s+"?([^"]+?)"?(?:\s+(?:and|by|per)\b|$)/)){
+    const c=men.find(x=>x.type==="text"||x.type==="long")||a.cols.find(x=>x.type==="text");
+    if(c){F.push({col:c.name,op:"contains",value:m[1]});hit=true}}
+  // numbers
+  const cm={above:">",over:">","greater than":">","more than":">","at least":">=",below:"<",under:"<","less than":"<","at most":"<="};
+  if(nc){
+    if(m=ql.match(/between\s*(?:rs\.?|₹)?\s*([\d,.]+)\s*(?:and|to|-)\s*(?:rs\.?|₹)?\s*([\d,.]+)/)){F.push({col:nc.name,op:"between",value:m[1].replace(/,/g,""),value2:m[2].replace(/,/g,"")});hit=true}
+    else if(m=ql.match(/\b(above|over|greater than|more than|at least|below|under|less than|at most)\s*(?:rs\.?|₹)?\s*([\d,]+(?:\.\d+)?)/)){F.push({col:nc.name,op:cm[m[1]],value:m[2].replace(/,/g,"")});hit=true}
+  }
+  // dates
+  const dc=men.find(c=>c.type==="date")||dts[0];
+  if(dc){
+    const T=new Date(),Y=T.getFullYear(),M=T.getMonth(),D=T.getDate(),iso=(y,mo,d)=>parseDate(new Date(y,mo,d)),
+      MN=["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"];let r=null;
+    if(/\btoday\b/.test(ql))r=[iso(Y,M,D),iso(Y,M,D)];
+    else if(/\byesterday\b/.test(ql))r=[iso(Y,M,D-1),iso(Y,M,D-1)];
+    else if(/this month/.test(ql))r=[iso(Y,M,1),iso(Y,M+1,0)];
+    else if(/last month/.test(ql))r=[iso(Y,M-1,1),iso(Y,M,0)];
+    else if(/this year/.test(ql))r=[iso(Y,0,1),iso(Y,11,31)];
+    else if(/last year/.test(ql))r=[iso(Y-1,0,1),iso(Y-1,11,31)];
+    else if(m=ql.match(/last (\d+) days/))r=[iso(Y,M,D-m[1]),iso(Y,M,D)];
+    else if(m=ql.match(/\b(?:in|during|of|for)\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*(?:\s+(\d{4}))?/)){const y=+(m[2]||Y),mi=MN.indexOf(m[1]);r=[iso(y,mi,1),iso(y,mi+1,0)]}
+    if(r){F.push({col:dc.name,op:"between",value:r[0],value2:r[1]});hit=true}
+    if(/\b(overdue|past due)\b/.test(ql)){F.push({col:dc.name,op:"<",value:iso(Y,M,D)});hit=true}
+  }
+  return hit||F.length?P:null;
+}
+
+// run a plan against the rows on this device
+function runPlan(a,P,via){
+  const out=$("#ans"),G=n=>a.cols.find(c=>c.name===n),F=(P.filters||[]).filter(f=>G(f.col));
+  let op=P.op||"list",col=G(P.col),gc=G(P.groupBy);
+  if(["sum","avg","min","max"].includes(op)){if(!col||col.type!=="number")col=a.cols.find(c=>c.type==="number");if(!col)op="count"}
+  const rows=a.rows.filter(x=>F.every(f=>matchF(x,f,a)));
+  const W={list:"Showing rows",count:"Count of rows",sum:"Total",avg:"Average",min:"Lowest",max:"Highest",distinct:"Unique values of"}[op]||"Result";
+  const cond=F.length?" where "+F.map(f=>`${f.col} ${f.op} ${f.value}${f.op==="between"?" and "+f.value2:""}`).join(" and "):"";
+  const head=`<div class="int">${esc(P.note?P.note+" — ":"")}${W}${col&&op!=="count"&&op!=="list"?" "+esc(col.name):""}${esc(cond)}${gc?" by "+esc(gc.name):""} (${esc(via)})</div>`;
+  let body="",s=null;
+  if(!rows.length)body="No rows match that.";
+  else{
+    if(op==="distinct"){gc=col||gc||a.cols[0];op="count";col=null}
+    if(gc&&op!=="list"){
+      const g={};rows.forEach(x=>{const k=x[gc.name]===""?"(blank)":x[gc.name];(g[k]=g[k]||[]).push(x)});
+      const ent=Object.entries(g).map(([k,r])=>[k,agg(r,op,col)]).sort((x,y)=>y[1]-x[1]).slice(0,15),mx=Math.max(...ent.map(e=>e[1]),1);
+      body=`<div class="bars">${ent.map(([k,v])=>`<span>${esc(k)}</span><div><div class="bar" style="width:${Math.max(2,v/mx*100)}%"></div></div><span>${fmtN(v)}</span>`).join("")}</div>`;
+    }else if(op==="count")body=`<b>${rows.length}</b> rows`;
+    else if(op==="list"){
+      let r=rows;s=G(P.sort?.col);const asc=P.sort?.dir==="asc";
+      if(s)r=[...r].sort((x,y)=>(x[s.name]>y[s.name]?1:x[s.name]<y[s.name]?-1:0)*(asc?1:-1));
+      const cs=a.cols.slice(0,6);
+      body=`<div class="tw" style="max-height:260px"><table><thead><tr>${cs.map(c=>`<th>${esc(c.name)}</th>`).join("")}</tr></thead><tbody>${r.slice(0,P.limit||10).map(x=>`<tr>${cs.map(c=>`<td class="${c.type==="number"?"n":""}">${esc(x[c.name])}</td>`).join("")}</tr>`).join("")}</tbody></table></div><p><button id="sa">Show all ${r.length} in the table</button></p>`;
+      P._asc=asc;
+    }else{
+      const v=agg(rows,op,col);body=`<b>${fmtN(v)}</b>`;
+      if(op==="min"||op==="max"){const r=rows.find(x=>+x[col.name]===v);if(r)body+=`<div class="mute">${a.cols.slice(0,4).filter(c=>c!==col).map(c=>esc(r[c.name])).join(", ")}</div>`}
+    }
+  }
+  out.innerHTML=head+body;
+  const sa=$("#sa");
+  if(sa)sa.onclick=()=>{st.pf=F;if(s){st.sort=s.name;st.dir=P._asc?1:-1}st.limit=200;render();$("#ans").innerHTML=`<div class="int">The table below is filtered by your question. Press Clear to reset.</div>`};
+}
+
+function ask(){
+  const a=app(),q=$("#q").value.trim(),out=$("#ans");if(!q)return;
+  const P=localPlan(a,q);
+  if(!P){out.innerHTML=`I could not match that to your columns. Try mentioning a column name, a dropdown value or a time like “this month”.`;return}
+  runPlan(a,P,"on this device");
+}
+
+// ---------- add / edit ----------
+function editRow(id){
+  const a=app(),row=id?a.rows.find(x=>x._id===id):{_id:uid()},d=$("#dlg");
+  d.innerHTML=`<h3 style="margin-top:0">${id?"Edit row":"Add row"}</h3><div style="max-height:62vh;overflow:auto">${a.cols.map((c,i)=>{
+    const v=row[c.name]??"";let inp;
+    if(c.type==="choice")inp=`<select data-k="${i}"><option value=""></option>${c.opts.map(o=>`<option ${o===v?"selected":""}>${esc(o)}</option>`).join("")}</select>`;
+    else if(c.type==="long")inp=`<textarea rows="3" data-k="${i}">${esc(v)}</textarea>`;
+    else inp=`<input data-k="${i}" type="${c.type==="number"?"number":c.type==="date"?"date":"text"}" ${c.type==="number"?'step="any"':""} value="${esc(v)}">`;
+    return `<div class="f"><label>${esc(c.name)}</label>${inp}</div>`}).join("")}</div>
+    <div class="row"><button onclick="$('#dlg').close()">Cancel</button><button class="pri" id="sv">Save</button></div>`;
+  $("#sv").onclick=async()=>{
+    d.querySelectorAll("[data-k]").forEach(el=>{const c=a.cols[el.dataset.k];let v=el.value;
+      if(c.type==="number")v=v===""?"":+v;
+      if(c.type==="choice"&&v&&!c.opts.includes(v))c.opts.push(v);row[c.name]=v});
+    if(!id)a.rows.unshift(row);await DB.put(a);d.close();render()};
+  d.showModal();
+}
+
+// ---------- export / backup ----------
+function dl(blob,name){const u=URL.createObjectURL(blob),l=document.createElement("a");l.href=u;l.download=name;l.click();setTimeout(()=>URL.revokeObjectURL(u),1000)}
+function exportX(){const a=app(),ws=XLSX.utils.json_to_sheet(view(a).map(r=>Object.fromEntries(a.cols.map(c=>[c.name,r[c.name]]))));
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Data");XLSX.writeFile(wb,a.name+".xlsx")}
+$("#bk").onclick=()=>dl(new Blob([JSON.stringify(apps)],{type:"application/json"}),"excelsimple-backup.json");
+$("#rs").onclick=()=>$("#restoreIn").click();
+$("#restoreIn").onchange=e=>{const f=e.target.files[0];if(!f)return;const fr=new FileReader();
+  fr.onload=async()=>{try{const list=JSON.parse(fr.result);for(const a of list){await DB.put(a);if(!apps.find(x=>x.id===a.id))apps.push(a);else apps[apps.findIndex(x=>x.id===a.id)]=a}cur=cur||apps[0]?.id;render()}catch(err){alert("This backup file could not be read.")}};
+  fr.readAsText(f);e.target.value=""};
+$("#addBtn").onclick=()=>$("#fileIn").click();
+$("#fileIn").onchange=e=>{if(e.target.files[0])readFile(e.target.files[0]);e.target.value=""};
+
+DB.open().then(DB.all.bind(DB)).then(l=>{apps=l.sort((a,b)=>a.created-b.created);cur=apps[0]?.id||null;render()})
+ .catch(()=>{$("#main").innerHTML='<div class="empty">This browser blocked local storage. Open the page in a normal (non-private) window.</div>'});
+</script>
+</body>
+</html>
